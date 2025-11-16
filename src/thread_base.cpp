@@ -126,13 +126,4 @@ namespace vms::core
         return true;
     }
 
-    bool Thread::lock_memory()
-    {
-        if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) 
-        {
-            return false;
-        }
-
-        return true;
-    }
 }

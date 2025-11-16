@@ -10,8 +10,6 @@
 #include <cstdint>
 #include <pthread.h>
 #include <sched.h>
-#include <sys/mman.h>
-
 #include <atomic>
 #include <mutex>
 
@@ -54,8 +52,6 @@ namespace vms::core
         void stop (bool bWaitJoin = true);
 
         static bool set_process_priority (int priority, ThreadSchedulingPolicy policy);
-
-        static bool lock_memory();
 
     protected:
         /** @brief Called before the loop starts; returning false aborts the run. */
