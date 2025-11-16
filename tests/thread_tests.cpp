@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <chrono>
 #include <iostream>
+#include <sched.h>
 #include <thread>
 #include <vector>
 
@@ -116,6 +117,27 @@ namespace
         std::atomic<bool> done_{false};
     };
 
+    class FailingInitThread : public vms::core::Thread
+    {
+    public:
+        bool init() override
+        {
+            init_called_.store(true, std::memory_order_release);
+            return false;
+        }
+
+        void run() override
+        {
+            run_called_.store(true, std::memory_order_release);
+        }
+
+        bool init_called() const { return init_called_.load(std::memory_order_acquire); }
+        bool run_called() const { return run_called_.load(std::memory_order_acquire); }
+
+    private:
+        std::atomic<bool> init_called_{false};
+        std::atomic<bool> run_called_{false};
+    };
     class RecordingHiResThread : public vms::core::HiResTimedThread
     {
     public:
@@ -200,6 +222,51 @@ namespace
         if (worker.init_calls() != 2 || worker.uninit_calls() != 2)
         {
             std::cerr << "[Thread] Restart cycle did not trigger init/uninit\n";
+            return false;
+        }
+
+        return true;
+    }
+
+    bool test_thread_init_failure()
+    {
+        FailingInitThread worker;
+
+        if (!worker.start())
+        {
+            std::cerr << "[ThreadInitFail] Unable to start worker\n";
+            return false;
+        }
+
+        const bool init_called = wait_for_condition(
+            [&]() { return worker.init_called(); }, std::chrono::milliseconds(100));
+
+        worker.stop();
+
+        if (!init_called)
+        {
+            std::cerr << "[ThreadInitFail] init() was never invoked\n";
+            return false;
+        }
+
+        if (worker.run_called())
+        {
+            std::cerr << "[ThreadInitFail] run() should not execute when init fails\n";
+            return false;
+        }
+
+        return true;
+    }
+
+    bool test_set_process_priority()
+    {
+        const int invalid_priority = sched_get_priority_max(SCHED_FIFO) + 1;
+        const bool result = vms::core::Thread::set_process_priority(
+            invalid_priority, vms::core::ThreadSchedulingPolicy::FIFO);
+
+        if (result)
+        {
+            std::cerr << "[SetProcessPriority] Expected failure for invalid priority\n";
             return false;
         }
 
@@ -318,6 +385,8 @@ int main()
 
     const TestEntry tests[] = {
         {"Thread lifecycle", &test_thread_lifecycle},
+        {"Thread init failure", &test_thread_init_failure},
+        {"Thread set process priority", &test_set_process_priority},
         {"TimedThread interval", &test_timed_thread_interval},
         {"HiResTimedThread interval", &test_hires_timed_thread_interval},
     };
