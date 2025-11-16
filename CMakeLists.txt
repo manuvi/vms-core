@@ -13,6 +13,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(vms-core
     src/thread_base.cpp
+    src/thread_worker.cpp
 )
 
 target_include_directories(vms-core
